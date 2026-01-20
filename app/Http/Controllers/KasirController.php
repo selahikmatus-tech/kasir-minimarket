@@ -94,11 +94,13 @@ class KasirController extends Controller
             $cart[$productId]['quantity'] += $qty;
         } else {
             $cart[$productId] = [
-                'code'     => $product->code,
-                'name'     => $product->name,
-                'price'    => $product->price,
-                'quantity' => $qty,
+                'product_id' => $product->id, // ✅ TAMBAHKAN
+                'code'       => $product->code,
+                'name'       => $product->name,
+                'price'      => $product->price,
+                'quantity'   => $qty,
             ];
+
         }
 
         Session::put('cart', $cart);
@@ -123,72 +125,65 @@ class KasirController extends Controller
      * Checkout
      */
     public function checkout(Request $request)
-    {
-        $request->validate([
-            'payment_amount' => 'required|numeric|min:0',
+{
+    $cart = session('cart', []);
+
+    if (empty($cart)) {
+        return redirect()->back()->with('error', 'Keranjang kosong');
+    }
+
+    DB::beginTransaction();
+    try {
+        $totalAmount = 0;
+        $itemCount   = 0;
+
+        foreach ($cart as $item) {
+            $totalAmount += $item['price'] * $item['quantity'];
+            $itemCount   += $item['quantity'];
+        }
+
+        $tax        = 0; // kalau ada pajak ubah disini
+        $discount   = 0; // kalau ada diskon ubah disini
+        $finalAmount = $totalAmount + $tax - $discount;
+
+        // 🔥 SIMPAN TRANSAKSI
+        $transaction = Transaction::create([
+            'invoice_number'  => 'INV-' . time(),
+            'total_amount'    => $totalAmount,
+            'tax'             => $tax,
+            'discount'        => $discount,
+            'final_amount'    => $finalAmount,
+            'item_count'      => $itemCount,
+            'payment_amount'  => $request->payment_amount ?? $finalAmount,
+            'change_amount'   => ($request->payment_amount ?? $finalAmount) - $finalAmount,
+            'payment_method'  => $request->payment_method ?? 'cash',
+            'payment_code'    => $request->payment_code,
+            'customer_name'   => $request->customer_name,
+            'user_id'         => Auth::id(),
         ]);
 
-        $cart = Session::get('cart');
-        if (!$cart || count($cart) === 0) {
-            return back()->with('error', 'Keranjang masih kosong');
-        }
-
-        $total = array_sum(array_map(
-            fn ($item) => $item['quantity'] * $item['price'],
-            $cart
-        ));
-
-        if ($request->payment_amount < $total) {
-            return back()->with('error', 'Uang pembayaran kurang');
-        }
-
-        DB::beginTransaction();
-
-        try {
-            // Generate invoice unik
-            $last = Transaction::latest()->first();
-            $number = $last
-                ? (int) substr($last->invoice_number, -4) + 1
-                : 1;
-
-            $invoice = 'INV-' . date('Ymd') . '-' . str_pad($number, 4, '0', STR_PAD_LEFT);
-
-            $transaction = Transaction::create([
-                'invoice_number'  => $invoice,
-                'user_id'         => Auth::id(),
-                'customer_name'   => 'Umum',
-                'total_amount'    => $total,
-                'payment_amount'  => $request->payment_amount,
-                'change_amount'   => $request->payment_amount - $total,
-                'payment_method'  => 'cash',
-                'transaction_date'=> now(),
+        // 🔥 SIMPAN ITEM
+        foreach ($cart as $item) {
+            TransactionItem::create([
+                'transaction_id' => $transaction->id,
+                'product_id'     => $item['product_id'],
+                'quantity'       => $item['quantity'],
+                'price'          => $item['price'],
+                'subtotal'       => $item['price'] * $item['quantity'],
             ]);
-
-            foreach ($cart as $productId => $item) {
-                TransactionItem::create([
-                    'transaction_id' => $transaction->id,
-                    'product_id'     => $productId,
-                    'quantity'       => $item['quantity'],
-                    'price'          => $item['price'],
-                    'subtotal'       => $item['quantity'] * $item['price'],
-                ]);
-
-                Product::find($productId)
-                    ->decrement('stock', $item['quantity']);
-            }
-
-            DB::commit();
-
-            Session::forget('cart');
-            Session::put('last_transaction', $transaction);
-
-            return redirect()->route('kasir.receipt');
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            return back()->with('error', $e->getMessage());
         }
+
+        session()->forget('cart');
+        DB::commit();
+
+        return redirect()->route('transactions.show', $transaction->id)
+            ->with('success', 'Transaksi berhasil');
+
+    } catch (\Exception $e) {
+        DB::rollBack();
+        return redirect()->back()->with('error', $e->getMessage());
     }
+}
 
     /**
      * Halaman struk / receipt

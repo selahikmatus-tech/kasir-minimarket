@@ -92,7 +92,12 @@
                                 <td><strong class="text-primary">{{ $transaction->invoice_number }}</strong></td>
                                     <td>{{ $transaction->created_at->format('d/m/Y H:i') }}</td>
                                     <td>{{ $transaction->item_count }}</td>
-                                    <td><strong>Rp {{ number_format($transaction->total_amount, 0, ',', '.') }}</strong></td>
+                                    <td>
+                                        <strong>
+                                            Rp {{ number_format($transaction->final_amount, 0, ',', '.') }}
+                                        </strong>
+                                    </td>
+
                                     <td>
                                         <a href="{{ route('transactions.show', $transaction) }}" class="btn btn-sm btn-info">
                                             <i class='bx bx-show'></i> Detail

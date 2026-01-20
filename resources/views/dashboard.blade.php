@@ -1,117 +1,81 @@
 @extends('layouts.kasir')
 
-@section('title', 'Dashboard')
-
 @section('content')
-<div class="row">
-    <div class="col-md-4 mb-4">
-        <div class="card card-stats text-white" style="background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h4 class="card-title">Total Barang</h4>
-                        <h2 class="mb-0">{{ $totalProducts }}</h2>
-                    </div>
-                    <div class="icon">
-                        <i class='bx bx-package' style="font-size: 3rem;"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-4 mb-4">
-        <div class="card card-stats bg-success text-white">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h4 class="card-title">Total Transaksi</h4>
-                        <h2 class="mb-0">{{ $totalTransactions }}</h2>
-                    </div>
-                    <div class="icon">
-                        <i class='bx bx-receipt' style="font-size: 3rem;"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-4 mb-4">
-        <div class="card card-stats bg-warning text-white">
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center">
-                    <div>
-                        <h4 class="card-title">Total Pendapatan</h4>
-                        <h2 class="mb-0">Rp {{ number_format($totalRevenue, 0, ',', '.') }}</h2>
-                    </div>
-                    <div class="icon">
-                        <i class='bx bx-money' style="font-size: 3rem;"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
+<div class="container">
+    <h3 class="mb-4">📊 Dashboard Kasir</h3>
 
-<div class="row">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-header">
-                <h5 class="card-title mb-0">Grafik Penjualan 7 Hari Terakhir</h5>
+    {{-- STATISTIC CARDS (Tetap sama) --}}
+    <div class="row mb-4">
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Total Produk</h6>
+                    <h4 class="fw-bold">{{ $totalProducts }}</h4>
+                </div>
             </div>
-            <div class="card-body">
-                <canvas id="salesChart" height="100"></canvas>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Total Transaksi</h6>
+                    <h4 class="fw-bold">{{ $totalTransactions }}</h4>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card shadow-sm border-0">
+                <div class="card-body text-center">
+                    <h6 class="text-muted">Total Pendapatan</h6>
+                    <h4 class="fw-bold text-primary">Rp {{ number_format($totalIncome, 0, ',', '.') }}</h4>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {{-- WEEKLY TRANSACTIONS WITH NAVIGATION --}}
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+            <h6 class="mb-0 fw-bold">📈 Pendapatan Harian</h6>
+            <div>
+                {{-- Tombol Minggu Sebelumnya --}}
+                <a href="{{ route('dashboard', ['week_offset' => $weekOffset + 1]) }}" class="btn btn-sm btn-outline-secondary">
+                    &laquo; Minggu Sebelumnya
+                </a>
+                
+                @if($weekOffset > 0)
+                    {{-- Tombol Minggu Selanjutnya (Hanya tampil jika bukan minggu ini) --}}
+                    <a href="{{ route('dashboard', ['week_offset' => $weekOffset - 1]) }}" class="btn btn-sm btn-outline-secondary">
+                        Minggu Selanjutnya &raquo;
+                    </a>
+                @endif
+            </div>
+        </div>
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th class="px-4">Tanggal</th>
+                            <th class="px-4">Total Pendapatan</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @forelse ($weeklyTransactions as $item)
+                            <tr>
+                                <td class="px-4">{{ $item['date'] }}</td>
+                                <td class="px-4 fw-bold text-success">
+                                    Rp {{ number_format($item['total'], 0, ',', '.') }}
+                                </td>
+                            </tr>
+                        @empty
+                            <tr>
+                                <td colspan="2" class="text-center py-4 text-muted">Tidak ada data.</td>
+                            </tr>
+                        @endforelse
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
 </div>
 @endsection
-
-@push('scripts')
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-    const ctx = document.getElementById('salesChart').getContext('2d');
-    const weeklyData = @json($weeklyTransactions);
-    
-    const labels = weeklyData.map(item => {
-        const date = new Date(item.date);
-        return date.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
-    });
-    
-    const data = weeklyData.map(item => parseFloat(item.total));
-    
-    new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [{
-                label: 'Pendapatan',
-                data: data,
-                borderColor: '#007bff',
-                backgroundColor: 'rgba(0, 123, 255, 0.1)',
-                borderWidth: 3,
-                fill: true,
-                tension: 0.4
-            }]
-        },
-        options: {
-            responsive: true,
-            plugins: {
-                legend: {
-                    display: false
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        callback: function(value) {
-                            return 'Rp ' + value.toLocaleString('id-ID');
-                        }
-                    }
-                }
-            }
-        }
-    });
-</script>
-@endpush
