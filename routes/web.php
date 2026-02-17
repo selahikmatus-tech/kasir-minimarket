@@ -28,4 +28,8 @@ Route::middleware(['auth'])->group(function () {
     
     Route::get('/transactions', [TransactionController::class, 'index'])->name('transactions.index');
     Route::get('/transactions/{transaction}', [TransactionController::class, 'show'])->name('transactions.show');
+
+    // Report Routes
+    Route::get('/report/daily', [DashboardController::class, 'printDaily'])->name('report.daily');
+    Route::get('/report/monthly', [DashboardController::class, 'printMonthly'])->name('report.monthly');
 });
